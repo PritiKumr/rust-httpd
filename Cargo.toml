@@ -1,0 +1,6 @@
+[package]
+name = "rust-httpd"
+version = "0.1.0"
+authors = ["PritiKumr <priti922474@gmail.com>"]
+
+[dependencies]
