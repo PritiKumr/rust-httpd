@@ -4,7 +4,13 @@ version = "0.1.0"
 authors = ["PritiKumr <priti922474@gmail.com>"]
 
 [dependencies]
-futures = "0.1"
-tokio-core = "0.1"
-tokio-service = "0.1"
+futures = "*"
 tokio-proto = "0.1"
+tokio-service = "0.1"
+
+# our toy HTTP implementation
+tokio-minihttp = { git = "https://github.com/tokio-rs/tokio-minihttp" }
+
+# misc support for thread pools, random numbers, and json
+futures-cpupool = "0.1"
+rustc-serialize = "0.3"
