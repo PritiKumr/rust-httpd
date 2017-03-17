@@ -13,14 +13,12 @@ use tokio_minihttp::{Request, Response};
 use tokio_proto::TcpServer;
 use tokio_service::Service;
 
+use std::fs::File;
+use std::io::BufReader;
+use std::io::prelude::*;
+
 struct Server {
     thread_pool: CpuPool
-}
-
-#[derive(RustcEncodable)]
-struct Message {
-    id: i32,
-    randomNumber: i32,
 }
 
 impl Service for Server {
@@ -30,15 +28,17 @@ impl Service for Server {
     type Future = BoxFuture<Response, io::Error>;
 
     fn call(&self, req: Request) -> Self::Future {
-        let msg = Message {
-		                id: 1,
-		                randomNumber: 22,
-			            };
+    		let mut file_path = String::from(req.path());
+    		file_path.remove(0);
+    		let file = File::open(file_path).expect("Hi");
+				let mut buf_reader = BufReader::new(file);
+				let mut contents = String::new();
+				buf_reader.read_to_string(&mut contents);
 
-        let json = rustc_serialize::json::encode(&msg).unwrap();
+        // let json = rustc_serialize::json::encode(&contents).unwrap();
         let mut response = Response::new();
-        response.header("Content-Type", "application/json");
-        response.body(&json);
+        response.header("Content-Type", "application/");
+        response.body(&contents);
         future::ok(response).boxed()
     }
 }
