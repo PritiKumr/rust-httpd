@@ -16,6 +16,9 @@ use tokio_service::Service;
 use std::fs::File;
 use std::io::BufReader;
 use std::io::prelude::*;
+use std::io::Read;
+use std::str;
+use std::{thread, time};
 
 struct Server {
     thread_pool: CpuPool
@@ -28,8 +31,14 @@ impl Service for Server {
     type Future = BoxFuture<Response, io::Error>;
 
     fn call(&self, req: Request) -> Self::Future {
+            println!("{}", req.path());
     		let mut file_path = String::from(req.path());
     		file_path.remove(0);
+            if file_path == "sleeper" {
+                let ten_millis = time::Duration::from_millis(10000);
+                thread::sleep(ten_millis);
+            }
+            
     		let file = match File::open(file_path) {
                 Ok(file) => file,
                 Err(err) => File::open("404.html").expect("404.html file missing!"),
