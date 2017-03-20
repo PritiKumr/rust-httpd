@@ -30,14 +30,16 @@ impl Service for Server {
     fn call(&self, req: Request) -> Self::Future {
     		let mut file_path = String::from(req.path());
     		file_path.remove(0);
-    		let file = File::open(file_path).expect("Hi");
-				let mut buf_reader = BufReader::new(file);
-				let mut contents = String::new();
-				buf_reader.read_to_string(&mut contents);
+    		let file = match File::open(file_path) {
+                Ok(file) => file,
+                Err(err) => File::open("404.html").expect("404.html file missing!"),
+            };
+			let mut buf_reader = BufReader::new(file);
+			let mut contents = String::new();
+			buf_reader.read_to_string(&mut contents);
 
         // let json = rustc_serialize::json::encode(&contents).unwrap();
         let mut response = Response::new();
-        response.header("Content-Type", "application/");
         response.body(&contents);
         future::ok(response).boxed()
     }
