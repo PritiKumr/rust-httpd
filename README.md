@@ -6,6 +6,8 @@ Just to see what it takes to build a HTTP web server and to learn Rust along the
 
 Make sure you have `cargo` [installed](https://www.rust-lang.org/en-US/install.html) and run the command `cargo run` to boot up the server. 
 
+Visit `locahost:8888` from your browser.
+
 ### What can it do now?
 
 At this stage our server will simply respond with a HTTP response with content as `Hello World`.
