@@ -4,3 +4,4 @@ version = "0.1.0"
 authors = ["PritiKumr <priti922474@gmail.com>", "Steve Robinson <steve.rob@me.com>"]
 
 [dependencies]
+httparse = "1.2.1"
