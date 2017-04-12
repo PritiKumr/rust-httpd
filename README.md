@@ -10,11 +10,15 @@ Visit `locahost:8888` from your browser.
 
 ### What can it do now?
 
-At this stage our server will simply respond with a HTTP response with content as `Hello World`.
+1. **Say hello world** - visit `localhost:8888/hello`
 
-### What's next?
+2. **Serve static files** - visit `localhost:8888/files/index.html`. Place any other file inside `www` and they can be served
 
-We're still figuring things out and thinking how to go about doing this project. We'll try to create some issues on GitHub for upcoming tasks.
+### TODO
+
+* CGI Scripting
+* Reverse Proxy
+* Server Configuration with TOML
 
 ### Follow the project
 
