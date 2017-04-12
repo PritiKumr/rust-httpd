@@ -12,8 +12,6 @@ fn respond_hello_world(mut stream: TcpStream) {
 }
 
 fn serve_static_file(mut stream: TcpStream, path: &str) {
-    println!("{:?}", stream);
-    println!("{}", path);
     let mut file = match File::open(path) {
         Ok(file) => file,
         Err(_) => File::open("404.html").expect("404.html file missing!"),
