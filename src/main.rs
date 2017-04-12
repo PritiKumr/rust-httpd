@@ -1,17 +1,27 @@
-use std::net::{Shutdown, TcpListener, TcpStream};
+use std::net::{TcpListener, TcpStream};
 use std::io::{Read, Write};
 use std::thread;
 use std::str;
+use std::fs::File;
 
 extern crate httparse;
-
-use httparse::EMPTY_HEADER;
-use httparse::Request;
-
 
 fn respond_hello_world(mut stream: TcpStream) {
     let response = b"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<html><body>Hello world</body></html>\r\n";
     stream.write(response).expect("Write failed");
+}
+
+fn serve_static_file(mut stream: TcpStream, path: &str) {
+    println!("{:?}", stream);
+    println!("{}", path);
+    let mut file = match File::open(path) {
+        Ok(file) => file,
+        Err(_) => File::open("404.html").expect("404.html file missing!"),
+    };
+    let mut buffer = [0; 4096];
+    file.read(&mut buffer).expect("Read failed");
+
+    stream.write(&buffer).expect("Write failed");
 }
 
 fn request_url(buffer: &[u8]) -> Option<&str> {
@@ -19,7 +29,7 @@ fn request_url(buffer: &[u8]) -> Option<&str> {
     let mut req = httparse::Request::new(&mut headers);
 
     match req.parse(&buffer) {
-        Ok(result) => {
+        Ok(_) => {
             match req.path {
                 Some(ref path) => {
                     return Some(path);
@@ -29,10 +39,9 @@ fn request_url(buffer: &[u8]) -> Option<&str> {
                 }
             }
         },
-        Err(msg) => {
+        Err(_) => {
             return None;
         }
-
     }
 }
 
@@ -40,9 +49,13 @@ fn handle_request(mut stream: TcpStream) {
     let mut buffer = [0; 4096];
     stream.read(&mut buffer).expect("Read failed");
 
-    match request_url(&buffer).unwrap() {
-        "/hello" => respond_hello_world(stream),
-        _ => println!("Ain't special"),
+    let request_path = request_url(&buffer).unwrap();
+    if request_path.starts_with("/files") {
+        serve_static_file(stream, &request_path[7..]);
+    } else if request_path == "/hello" {
+        respond_hello_world(stream);
+    } else {
+        println!("Ain't special");
     }
 }
 
@@ -57,7 +70,7 @@ fn main() {
                     handle_request(stream)
                 });
             }
-            Err(e) => { 
+            Err(_) => { 
                 println!("Connection failed");
             }
         }
