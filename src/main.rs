@@ -18,8 +18,8 @@ fn serve_static_file(mut stream: TcpStream, path: &str) {
         Ok(file) => file,
         Err(_) => File::open("404.html").expect("404.html file missing!"),
     };
-    let mut buffer = [0; 4096];
-    file.read(&mut buffer).expect("Read failed");
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer).expect("Read failed");
 
     stream.write(&buffer).expect("Write failed");
 }
