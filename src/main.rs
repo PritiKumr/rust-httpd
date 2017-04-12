@@ -24,6 +24,11 @@ fn serve_static_file(mut stream: TcpStream, path: &str) {
     stream.write(&buffer).expect("Write failed");
 }
 
+fn respond_error(mut stream: TcpStream) {
+    let response = b"HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<html><body>Server Error</body></html>\r\n";
+    stream.write(response).expect("Write failed");
+}
+
 fn request_url(buffer: &[u8]) -> Option<&str> {
     let mut headers = [httparse::EMPTY_HEADER; 16];
     let mut req = httparse::Request::new(&mut headers);
@@ -49,14 +54,21 @@ fn handle_request(mut stream: TcpStream) {
     let mut buffer = [0; 4096];
     stream.read(&mut buffer).expect("Read failed");
 
-    let request_path = request_url(&buffer).unwrap();
-    if request_path.starts_with("/files") {
-        serve_static_file(stream, &request_path[7..]);
-    } else if request_path == "/hello" {
-        respond_hello_world(stream);
-    } else {
-        println!("Ain't special");
-    }
+    match request_url(&buffer) {
+        Some(path) => {
+            if path.starts_with("/files") {
+                serve_static_file(stream, &path[7..]);
+            } else if path == "/hello" {
+                respond_hello_world(stream);
+            } else {
+                println!("Ain't special");
+            }
+        },
+        None => {
+            respond_error(stream);
+        }
+    };
+    
 }
 
 
