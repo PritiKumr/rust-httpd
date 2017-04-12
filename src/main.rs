@@ -29,6 +29,11 @@ fn respond_error(mut stream: TcpStream) {
     stream.write(response).expect("Write failed");
 }
 
+fn respond_file_not_found(mut stream: TcpStream) {
+    let response = b"HTTP/1.1 404 File Not Found\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<html><body>File Not Found</body></html>\r\n";
+    stream.write(response).expect("Write failed");
+}
+
 fn request_url(buffer: &[u8]) -> Option<&str> {
     let mut headers = [httparse::EMPTY_HEADER; 16];
     let mut req = httparse::Request::new(&mut headers);
@@ -61,7 +66,7 @@ fn handle_request(mut stream: TcpStream) {
             } else if path == "/hello" {
                 respond_hello_world(stream);
             } else {
-                println!("Ain't special");
+                respond_file_not_found(stream);
             }
         },
         None => {
