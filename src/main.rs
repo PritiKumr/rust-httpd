@@ -24,25 +24,28 @@ fn serve_static_file(mut stream: TcpStream, path: &str) {
 }
 
 fn handle_cgi_script(mut stream: TcpStream, path: &str) {
-    let output = Command::new(format!("cgi/{}", path))
-                    .output().unwrap_or_else(|e| {
-                        panic!("{}", e);
-                    });
-
-    if output.status.success() {
-        stream.write(&output.stdout).expect("Command failed");
-    } else {
-        stream.write(&output.stderr).expect("Stderr");
-    }
+    // let output = Command::new(format!("cgi/{}", path))
+    match Command::new(format!("cgi/{}", path)).output() {
+        Ok(output) => {
+            if output.status.success() {
+                stream.write(&output.stdout).expect("Command failed");
+            } else {
+                stream.write(&output.stderr).expect("Stderr");
+            }
+        },
+        Err(_) => {
+            respond_error(stream);
+        }
+    }               
 }
 
 fn respond_error(mut stream: TcpStream) {
-    let response = b"HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<html><body>Server Error</body></html>\r\n";
+    let response = b"HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<html><body>500 - Server Error</body></html>\r\n";
     stream.write(response).expect("Write failed");
 }
 
 fn respond_file_not_found(mut stream: TcpStream) {
-    let response = b"HTTP/1.1 404 File Not Found\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<html><body>File Not Found</body></html>\r\n";
+    let response = b"HTTP/1.1 404 File Not Found\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<html><body>404 - File Not Found</body></html>\r\n";
     stream.write(response).expect("Write failed");
 }
 
