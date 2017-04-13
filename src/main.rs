@@ -3,6 +3,7 @@ use std::io::{Read, Write};
 use std::thread;
 use std::str;
 use std::fs::File;
+use std::process::Command;
 
 extern crate httparse;
 
@@ -20,6 +21,19 @@ fn serve_static_file(mut stream: TcpStream, path: &str) {
     file.read_to_end(&mut buffer).expect("Read failed");
 
     stream.write(&buffer).expect("Write failed");
+}
+
+fn handle_cgi_script(mut stream: TcpStream, path: &str) {
+    let output = Command::new(format!("cgi/{}", path))
+                    .output().unwrap_or_else(|e| {
+                        panic!("{}", e);
+                    });
+
+    if output.status.success() {
+        stream.write(&output.stdout).expect("Command failed");
+    } else {
+        stream.write(&output.stderr).expect("Stderr");
+    }
 }
 
 fn respond_error(mut stream: TcpStream) {
@@ -63,6 +77,8 @@ fn handle_request(mut stream: TcpStream) {
                 serve_static_file(stream, &path[7..]);
             } else if path == "/hello" {
                 respond_hello_world(stream);
+            } else if path.starts_with("/cgi") {
+                handle_cgi_script(stream, &path[5..]);
             } else {
                 respond_file_not_found(stream);
             }
