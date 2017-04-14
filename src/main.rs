@@ -19,8 +19,13 @@ fn serve_static_file(mut stream: TcpStream, path: &str) {
     };
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer).expect("Read failed");
-
-    stream.write(format!("HTTP/1.1 200 OK\r\nContent-Type: application/pdf\r\nContent-Disposition:inline;filename={}\r\n\r\n", path).as_bytes()).expect("Where did this go?");
+    let mut parts = path.split('.').collect::<Vec<&str>>();
+    let header:String = match parts.pop() {
+        Some("pdf") => format!("HTTP/1.1 200 OK\r\nContent-Type: application/pdf\r\nContent-Disposition:inline;filename={}\r\n\r\n", path),
+        Some(_) => "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n".to_string(),
+        None => "".to_string(),
+    };
+    stream.write(header.as_bytes()).expect("Headers did not make it to client");
     stream.write(&buffer).expect("Write failed");
 }
 
