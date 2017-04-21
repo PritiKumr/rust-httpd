@@ -19,7 +19,13 @@ fn serve_static_file(mut stream: TcpStream, path: &str) {
     };
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer).expect("Read failed");
-
+    let mut parts = path.split('.').collect::<Vec<&str>>();
+    let header:String = match parts.pop() {
+        Some("pdf") => format!("HTTP/1.1 200 OK\r\nContent-Type: application/pdf\r\nContent-Disposition:inline;filename={}\r\n\r\n", path),
+        Some(_) => "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n".to_string(),
+        None => "".to_string(),
+    };
+    stream.write(header.as_bytes()).expect("Headers did not make it to client");
     stream.write(&buffer).expect("Write failed");
 }
 
@@ -36,7 +42,7 @@ fn handle_cgi_script(mut stream: TcpStream, path: &str) {
         Err(_) => {
             respond_error(stream);
         }
-    }               
+    }
 }
 
 fn respond_error(mut stream: TcpStream) {
@@ -60,7 +66,7 @@ fn request_url(buffer: &[u8]) -> Option<&str> {
                     return Some(path);
                 },
                 None => {
-                  return None;  
+                  return None;
                 }
             }
         },
@@ -90,7 +96,7 @@ fn handle_request(mut stream: TcpStream) {
             respond_error(stream);
         }
     };
-    
+
 }
 
 
@@ -104,7 +110,7 @@ fn main() {
                     handle_request(stream)
                 });
             }
-            Err(_) => { 
+            Err(_) => {
                 println!("Connection failed");
             }
         }
