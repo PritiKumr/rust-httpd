@@ -1,5 +1,5 @@
 use std::net::{TcpListener, TcpStream};
-use std::io::{Read, Write};
+use std::io::{Read, Write, BufReader, BufRead};
 use std::thread;
 use std::str;
 use std::fs::File;
@@ -70,11 +70,26 @@ fn request_url(buffer: &[u8]) -> Option<&str> {
     }
 }
 
-fn handle_request(mut stream: TcpStream) {
-    let mut buffer = [0; 4096];
-    stream.read(&mut buffer).expect("Read failed");
+fn read_request(stream: &TcpStream) -> Vec<u8> {
+    let mut reader = BufReader::new(stream);
+    let mut buff = Vec::new();
+    let mut read_bytes = reader.read_until(b'\n', &mut buff).unwrap();
+    while read_bytes > 0 {
+        read_bytes = reader.read_until(b'\n', &mut buff).unwrap();
+        if read_bytes == 2 && &buff[(buff.len()-2)..] == b"\r\n" {
+            break;
+        }
+    }
+    return buff;
+}
 
-    match request_url(&buffer) {
+fn handle_request(mut stream: TcpStream) {
+    let request_bytes = read_request(&stream);
+    let mut headers = [httparse::EMPTY_HEADER; 16];
+    let mut req = httparse::Request::new(&mut headers);
+    req.parse(&request_bytes);
+
+    match req.path {
         Some(path) => {
             if path.starts_with("/files") {
                 serve_static_file(stream, &path[7..]);
@@ -99,7 +114,7 @@ fn main() {
         match stream {
             Ok(stream) => {
                 thread::spawn(|| {
-                    handle_request(stream)
+                    handle_request(stream);
                 });
             }
             Err(_) => { 
