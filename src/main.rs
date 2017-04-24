@@ -23,9 +23,13 @@ fn serve_static_file(mut stream: TcpStream, path: &str) {
     stream.write(&buffer).expect("Write failed");
 }
 
-fn handle_cgi_script(mut stream: TcpStream, path: &str) {
-    // let output = Command::new(format!("cgi/{}", path))
-    match Command::new(format!("cgi/{}", path)).output() {
+fn handle_cgi_script(request: httparse::Request, mut stream: TcpStream, path: &str) {
+    let request_method = request.method.unwrap();
+
+    let command = Command::new(format!("cgi/{}", path))
+                    .env("REQUEST_METHOD", request_method);
+
+    match command.output() {
         Ok(output) => {
             if output.status.success() {
                 stream.write(&output.stdout).expect("Command failed");
@@ -96,7 +100,7 @@ fn handle_request(mut stream: TcpStream) {
             } else if path == "/hello" {
                 respond_hello_world(stream);
             } else if path.starts_with("/cgi") {
-                handle_cgi_script(stream, &path[5..]);
+                handle_cgi_script(req, stream, &path[5..]);
             } else {
                 respond_file_not_found(stream);
             }
