@@ -24,10 +24,18 @@ fn serve_static_file(mut stream: TcpStream, path: &str) {
 }
 
 fn handle_cgi_script(request: httparse::Request, mut stream: TcpStream, path: &str) {
-    let request_method = request.method.unwrap();
+    for (i, &item) in request.headers.iter().enumerate() {
+        println!("{} {:?}", &item.name, str::from_utf8(&item.value));
+        match &item.name {
+            Some(expr) => expr,
+            None => expr,
+        }
+    }
+    // build_cgi_headers(request.headers);
 
-    let command = Command::new(format!("cgi/{}", path))
-                    .env("REQUEST_METHOD", request_method);
+    let mut command = Command::new(format!("cgi/{}", path));
+    command.env("REQUEST_METHOD", request.method.unwrap());
+    // command.env()
 
     match command.output() {
         Ok(output) => {
@@ -42,6 +50,13 @@ fn handle_cgi_script(request: httparse::Request, mut stream: TcpStream, path: &s
         }
     }               
 }
+
+// fn build_cgi_headers<'a>(headers: &'a [httparse::Header]) -> &'a[(&'a str, &'a str)] {
+//     println!("{:?} {}",str::from_utf8(headers[1].value), headers[1].name);
+//     let name = headers[1].name;
+//     let value = str::from_utf8(headers[1].value).unwrap();
+//     &[(name, value)]
+// }
 
 fn respond_error(mut stream: TcpStream) {
     let response = b"HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<html><body>500 - Server Error</body></html>\r\n";
