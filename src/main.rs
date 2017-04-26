@@ -24,12 +24,28 @@ fn serve_static_file(mut stream: TcpStream, path: &str) {
 }
 
 fn handle_cgi_script(request: httparse::Request, mut stream: TcpStream, path: &str) {
+    let mut headers = Vec::new();
+
     for (i, &item) in request.headers.iter().enumerate() {
-        println!("{} {:?}", &item.name, str::from_utf8(&item.value));
         match &item.name {
-            Some(expr) => expr,
-            None => expr,
-        }
+            &"Authorization" => headers.push(("AUTH_TYPE", str::from_utf8(&item.value).unwrap())),
+            &"Content-Length" => headers.push(("CONTENT_LENGTH", str::from_utf8(&item.value).unwrap())),
+            &"Content-Type" => headers.push(("CONTENT_TYPE", str::from_utf8(&item.value).unwrap())),
+            &"Host" => {
+                let header_value = str::from_utf8(&item.value).unwrap();
+
+                match header_value.find(':') {
+                    Some(index) => {
+                        headers.push(("SERVER_NAME", &header_value[..(index)]));
+                        headers.push(("SERVER_PORT", &header_value[(index + 1)..]));
+                    },
+                    None => {
+                        headers.push(("SERVER_NAME", header_value));
+                    }
+                }
+            },
+            _ => {},
+        };
     }
     // build_cgi_headers(request.headers);
 
