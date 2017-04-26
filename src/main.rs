@@ -1,4 +1,4 @@
-use std::net::{TcpListener, TcpStream};
+use std::net::{TcpListener, TcpStream, SocketAddr};
 use std::io::{Read, Write, BufReader, BufRead};
 use std::thread;
 use std::str;
@@ -23,7 +23,41 @@ fn serve_static_file(mut stream: TcpStream, path: &str) {
     stream.write(&buffer).expect("Write failed");
 }
 
-fn handle_cgi_script(request: httparse::Request, mut stream: TcpStream, path: &str) {
+fn handle_cgi_script(request: httparse::Request, mut stream: TcpStream, client_addr: SocketAddr, req_path: &str) {
+
+    let path_components: Vec<&str> = req_path.splitn(2, "/").collect();
+    let default_path = "/";
+    let (script_name, path_info) = (path_components.get(0).unwrap(), path_components.get(1).unwrap_or(&default_path));
+
+    let client_ip = client_addr.ip().to_string();
+
+    let meta_variables = build_cgi_meta_vars(&request, &client_ip, script_name, path_info);
+
+    let mut command = Command::new(format!("cgi/{}", req_path));
+
+    build_environmental_variables(&mut command, meta_variables);
+    
+    match command.output() {
+        Ok(output) => {
+            if output.status.success() {
+                stream.write(&output.stdout).expect("Command failed");
+            } else {
+                stream.write(&output.stderr).expect("Stderr");
+            }
+        },
+        Err(_) => {
+            respond_error(stream);
+        }
+    }               
+}
+
+fn build_environmental_variables<'a>(command: &'a mut Command, meta_variables: Vec<(&'a str, &'a str)>) {
+    for &tup in meta_variables.iter() {
+        command.env(tup.0, tup.1);
+    } 
+}
+
+fn build_cgi_meta_vars<'a>(request: &'a httparse::Request, client_ip: &'a String, script_name: &'a str, path_info: &'a str) -> Vec<(&'a str, &'a str)> {
     let mut headers = Vec::new();
 
     for (i, &item) in request.headers.iter().enumerate() {
@@ -46,33 +80,29 @@ fn handle_cgi_script(request: httparse::Request, mut stream: TcpStream, path: &s
             },
             _ => {},
         };
-    }
-    // build_cgi_headers(request.headers);
+    };
 
-    let mut command = Command::new(format!("cgi/{}", path));
-    command.env("REQUEST_METHOD", request.method.unwrap());
-    // command.env()
+    headers.push(("REMOTE_ADDR", &client_ip[..]));
+    headers.push(("REMOTE_HOST", &client_ip[..]));
 
-    match command.output() {
-        Ok(output) => {
-            if output.status.success() {
-                stream.write(&output.stdout).expect("Command failed");
-            } else {
-                stream.write(&output.stderr).expect("Stderr");
-            }
+    headers.push(("REQUEST_METHOD", request.method.unwrap()));
+    headers.push(("SCRIPT_NAME", script_name));
+
+    match path_info.find('?') {
+        Some(index) => {
+            headers.push(("PATH_INFO", &path_info[..(index)]));
+            headers.push(("QUERY_STRING", &path_info[(index + 1)..]));
         },
-        Err(_) => {
-            respond_error(stream);
+        None => {
+            headers.push(("PATH_INFO", path_info));
         }
-    }               
-}
+    };
 
-// fn build_cgi_headers<'a>(headers: &'a [httparse::Header]) -> &'a[(&'a str, &'a str)] {
-//     println!("{:?} {}",str::from_utf8(headers[1].value), headers[1].name);
-//     let name = headers[1].name;
-//     let value = str::from_utf8(headers[1].value).unwrap();
-//     &[(name, value)]
-// }
+    headers.push(("SERVER_PROTOCOL", "HTTP 1.1"));
+    headers.push(("SERVER_SOFTWARE", "rust-httpd 0.1"));
+
+    return headers;
+}
 
 fn respond_error(mut stream: TcpStream) {
     let response = b"HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<html><body>500 - Server Error</body></html>\r\n";
@@ -118,7 +148,7 @@ fn read_request(stream: &TcpStream) -> Vec<u8> {
     return buff;
 }
 
-fn handle_request(mut stream: TcpStream) {
+fn handle_request(mut stream: TcpStream, client_addr: SocketAddr) {
     let request_bytes = read_request(&stream);
     let mut headers = [httparse::EMPTY_HEADER; 16];
     let mut req = httparse::Request::new(&mut headers);
@@ -131,7 +161,7 @@ fn handle_request(mut stream: TcpStream) {
             } else if path == "/hello" {
                 respond_hello_world(stream);
             } else if path.starts_with("/cgi") {
-                handle_cgi_script(req, stream, &path[5..]);
+                handle_cgi_script(req, stream, client_addr, &path[5..]);
             } else {
                 respond_file_not_found(stream);
             }
@@ -145,16 +175,18 @@ fn handle_request(mut stream: TcpStream) {
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:8888").unwrap();
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                thread::spawn(|| {
-                    handle_request(stream);
-                });
-            }
-            Err(_) => { 
-                println!("Connection failed");
-            }
-        }
-    }
+    
+    loop {    
+        match listener.accept() {
+            Ok((stream, addr)) => { thread::spawn(move || {
+                    handle_request(stream, addr);
+                })
+            },
+            Err(e) => { 
+                thread::spawn(move || { 
+                    println!("Connection failed: {:?}", e)
+                })
+            },
+        };
+    };
 }
