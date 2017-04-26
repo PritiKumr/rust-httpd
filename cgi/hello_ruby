@@ -1,3 +1,38 @@
 #!/usr/bin/env ruby
-puts "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n"
-puts "<html><body style='color: red'>HELLO RUBY WORLD - Request Method - #{ENV.inspect} </body></html>\r\n"
+
+def within_template 
+  puts "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n"
+  puts "<html><body>"
+  yield
+  puts "</body></html>\r\n"
+end
+
+def index
+  within_template do
+    puts "INDEX!!"
+  end
+end
+
+def new_post
+  within_template do 
+    puts "<form action='/cgi/hello_ruby/posts/create'><label>Title 
+      <input type='text' name='title' /></label>
+      <label>Body 
+      <input type='text' name='body' /></label><input type='submit' /></form>"
+  end
+end
+
+def save_post 
+  within_template do
+    puts "<h1>POST SAVED #{ENV['QUERY_STRING']}</h1>"
+  end
+end
+
+case ENV["PATH_INFO"]
+when "/"
+  index
+when "posts/new"
+  new_post
+when "posts/create"
+  save_post
+end

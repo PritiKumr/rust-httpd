@@ -33,9 +33,12 @@ fn handle_cgi_script(request: httparse::Request, mut stream: TcpStream, client_a
 
     let meta_variables = build_cgi_meta_vars(&request, &client_ip, script_name, path_info);
 
-    let mut command = Command::new(format!("cgi/{}", req_path));
+    let mut command = Command::new(format!("cgi/{}", script_name));
 
+    println!("{:?}", &meta_variables);
     build_environmental_variables(&mut command, meta_variables);
+
+
     
     match command.output() {
         Ok(output) => {
@@ -55,6 +58,8 @@ fn build_environmental_variables<'a>(command: &'a mut Command, meta_variables: V
     for &tup in meta_variables.iter() {
         command.env(tup.0, tup.1);
     } 
+
+    println!("{:?}", command);
 }
 
 fn build_cgi_meta_vars<'a>(request: &'a httparse::Request, client_ip: &'a String, script_name: &'a str, path_info: &'a str) -> Vec<(&'a str, &'a str)> {
