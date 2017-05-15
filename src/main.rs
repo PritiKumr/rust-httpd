@@ -140,7 +140,7 @@ fn request_url(buffer: &[u8]) -> Option<&str> {
     }
 }
 
-fn read_request(stream: &TcpStream) -> Vec<u8> {
+fn read_request_head(stream: &TcpStream) -> Vec<u8> {
     let mut reader = BufReader::new(stream);
     let mut buff = Vec::new();
     let mut read_bytes = reader.read_until(b'\n', &mut buff).unwrap();
@@ -154,10 +154,17 @@ fn read_request(stream: &TcpStream) -> Vec<u8> {
 }
 
 fn handle_request(mut stream: TcpStream, client_addr: SocketAddr) {
-    let request_bytes = read_request(&stream);
+    let request_bytes = read_request_head(&stream);
     let mut headers = [httparse::EMPTY_HEADER; 16];
     let mut req = httparse::Request::new(&mut headers);
     req.parse(&request_bytes);
+    println!("{:?}", req.headers);
+    let body_length: u32 = match req.headers.iter().find(|&&header| header.name == "Content-Length") {
+        Some(header) => str::from_utf8(header.value).unwrap().parse().unwrap(),
+        None => 0,
+    };
+
+    // let request_body = read_request_body();
 
     match req.path {
         Some(path) => {
