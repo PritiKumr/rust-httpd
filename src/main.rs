@@ -1,9 +1,9 @@
-use std::net::{TcpListener, TcpStream, SocketAddr};
-use std::io::{Read, Write, BufReader, BufRead};
-use std::thread;
-use std::str;
 use std::fs::File;
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::process::Command;
+use std::str;
+use std::thread;
 
 extern crate httparse;
 
@@ -17,17 +17,26 @@ fn serve_static_file(mut stream: TcpStream, path: &str) {
         Ok(file) => file,
         Err(_) => File::open("404.html").expect("404.html file missing!"),
     };
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).expect("Read failed");
-
-    stream.write(&buffer).expect("Write failed");
+    let mut contents = String::new();
+    file.read_to_string(&mut contents).unwrap();
+    let response = format!("HTTP/1.1 200 OK\r\n\r\n{}", contents); // Modern browsers don't accept request without HTTP status codes!
+    stream
+        .write(response.as_bytes())
+        .expect("Failed to write to stream!");
 }
 
-fn handle_cgi_script(request: httparse::Request, mut stream: TcpStream, client_addr: SocketAddr, req_path: &str) {
-
+fn handle_cgi_script(
+    request: httparse::Request,
+    mut stream: TcpStream,
+    client_addr: SocketAddr,
+    req_path: &str,
+) {
     let path_components: Vec<&str> = req_path.splitn(2, "/").collect();
     let default_path = "/";
-    let (script_name, path_info) = (path_components.get(0).unwrap(), path_components.get(1).unwrap_or(&default_path));
+    let (script_name, path_info) = (
+        path_components.get(0).unwrap(),
+        path_components.get(1).unwrap_or(&default_path),
+    );
 
     let client_ip = client_addr.ip().to_string();
 
@@ -38,8 +47,6 @@ fn handle_cgi_script(request: httparse::Request, mut stream: TcpStream, client_a
     println!("{:?}", &meta_variables);
     build_environmental_variables(&mut command, meta_variables);
 
-
-    
     match command.output() {
         Ok(output) => {
             if output.status.success() {
@@ -47,28 +54,38 @@ fn handle_cgi_script(request: httparse::Request, mut stream: TcpStream, client_a
             } else {
                 stream.write(&output.stderr).expect("Stderr");
             }
-        },
+        }
         Err(_) => {
             respond_error(stream);
         }
-    }               
+    }
 }
 
-fn build_environmental_variables<'a>(command: &'a mut Command, meta_variables: Vec<(&'a str, &'a str)>) {
+fn build_environmental_variables<'a>(
+    command: &'a mut Command,
+    meta_variables: Vec<(&'a str, &'a str)>,
+) {
     for &tup in meta_variables.iter() {
         command.env(tup.0, tup.1);
-    } 
+    }
 
     println!("{:?}", command);
 }
 
-fn build_cgi_meta_vars<'a>(request: &'a httparse::Request, client_ip: &'a String, script_name: &'a str, path_info: &'a str) -> Vec<(&'a str, &'a str)> {
+fn build_cgi_meta_vars<'a>(
+    request: &'a httparse::Request,
+    client_ip: &'a String,
+    script_name: &'a str,
+    path_info: &'a str,
+) -> Vec<(&'a str, &'a str)> {
     let mut headers = Vec::new();
 
     for (i, &item) in request.headers.iter().enumerate() {
         match &item.name {
             &"Authorization" => headers.push(("AUTH_TYPE", str::from_utf8(&item.value).unwrap())),
-            &"Content-Length" => headers.push(("CONTENT_LENGTH", str::from_utf8(&item.value).unwrap())),
+            &"Content-Length" => {
+                headers.push(("CONTENT_LENGTH", str::from_utf8(&item.value).unwrap()))
+            }
             &"Content-Type" => headers.push(("CONTENT_TYPE", str::from_utf8(&item.value).unwrap())),
             &"Host" => {
                 let header_value = str::from_utf8(&item.value).unwrap();
@@ -77,15 +94,15 @@ fn build_cgi_meta_vars<'a>(request: &'a httparse::Request, client_ip: &'a String
                     Some(index) => {
                         headers.push(("SERVER_NAME", &header_value[..(index)]));
                         headers.push(("SERVER_PORT", &header_value[(index + 1)..]));
-                    },
+                    }
                     None => {
                         headers.push(("SERVER_NAME", header_value));
                     }
                 }
-            },
-            _ => {},
+            }
+            _ => {}
         };
-    };
+    }
 
     headers.push(("REMOTE_ADDR", &client_ip[..]));
     headers.push(("REMOTE_HOST", &client_ip[..]));
@@ -97,7 +114,7 @@ fn build_cgi_meta_vars<'a>(request: &'a httparse::Request, client_ip: &'a String
         Some(index) => {
             headers.push(("PATH_INFO", &path_info[..(index)]));
             headers.push(("QUERY_STRING", &path_info[(index + 1)..]));
-        },
+        }
         None => {
             headers.push(("PATH_INFO", path_info));
         }
@@ -124,14 +141,12 @@ fn request_url(buffer: &[u8]) -> Option<&str> {
     let mut req = httparse::Request::new(&mut headers);
 
     match req.parse(&buffer) {
-        Ok(_) => {
-            match req.path {
-                Some(ref path) => {
-                    return Some(path);
-                },
-                None => {
-                  return None;  
-                }
+        Ok(_) => match req.path {
+            Some(ref path) => {
+                return Some(path);
+            }
+            None => {
+                return None;
             }
         },
         Err(_) => {
@@ -146,7 +161,7 @@ fn read_request_head(stream: &TcpStream) -> Vec<u8> {
     let mut read_bytes = reader.read_until(b'\n', &mut buff).unwrap();
     while read_bytes > 0 {
         read_bytes = reader.read_until(b'\n', &mut buff).unwrap();
-        if read_bytes == 2 && &buff[(buff.len()-2)..] == b"\r\n" {
+        if read_bytes == 2 && &buff[(buff.len() - 2)..] == b"\r\n" {
             break;
         }
     }
@@ -159,12 +174,14 @@ fn handle_request(mut stream: TcpStream, client_addr: SocketAddr) {
     let mut req = httparse::Request::new(&mut headers);
     req.parse(&request_bytes);
     println!("{:?}", req.headers);
-    let body_length: u32 = match req.headers.iter().find(|&&header| header.name == "Content-Length") {
+    let body_length: u32 = match req
+        .headers
+        .iter()
+        .find(|&&header| header.name == "Content-Length")
+    {
         Some(header) => str::from_utf8(header.value).unwrap().parse().unwrap(),
         None => 0,
     };
-
-    // let request_body = read_request_body();
 
     match req.path {
         Some(path) => {
@@ -177,28 +194,23 @@ fn handle_request(mut stream: TcpStream, client_addr: SocketAddr) {
             } else {
                 respond_file_not_found(stream);
             }
-        },
+        }
         None => {
             respond_error(stream);
         }
     };
-    
 }
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:8888").unwrap();
-    
-    loop {    
+
+    loop {
         match listener.accept() {
-            Ok((stream, addr)) => { thread::spawn(move || {
-                    handle_request(stream, addr);
-                })
-            },
-            Err(e) => { 
-                thread::spawn(move || { 
-                    println!("Connection failed: {:?}", e)
-                })
-            },
+            // You need to understand, that you can't just spwn the infinite count of new threads, because someone making million requests to our server could create havoc by using up all our server’s resources. this  type of attack is called DoS
+            Ok((stream, addr)) => thread::spawn(move || {
+                handle_request(stream, addr);
+            }),
+            Err(e) => thread::spawn(move || println!("Connection failed: {:?}", e)),
         };
-    };
+    }
 }
